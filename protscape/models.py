@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from protscape import datasets
 from sklearn.metrics import mean_squared_error
 from scipy.stats import spearmanr
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 
 
 class MaxSeqPool(nn.Module):
@@ -152,17 +152,17 @@ class CNNEncoder(pl.LightningModule):
         optimizer = torch.optim.Adam(
             [
                 {
-                    "params": model.encoder.parameters(),
+                    "params": self.encoder.parameters(),
                     "lr": self.learning_rates[0],
                     "weight_decay": self.weight_decays[0],
                 },
                 {
-                    "params": model.mapper.parameters(),
+                    "params": self.mapper.parameters(),
                     "lr": self.learning_rates[1],
                     "weight_decay": self.weight_decays[1],
                 },
                 {
-                    "params": model.predictor.parameters(),
+                    "params": self.predictor.parameters(),
                     "lr": self.learning_rates[2],
                     "weight_decay": self.weight_decays[2],
                 },
@@ -203,23 +203,19 @@ class CNNEncoder(pl.LightningModule):
 
         return loss
 
-    def run_predict(
-        self,
-        dataloader: DataLoader,
-        y_min: Optional[float] = None,
-        y_max: Optional[float] = None,
-    ) -> Tuple[List, List]:
+    def run_predict(self, loader: DataLoader) -> Tuple[List, List]:
 
         """Predict activity on input dataloader."""
 
-        model.eval()
+        self.eval()
 
         preds = []
         true = []
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch in loader:
                 x, y = batch
+
                 x = x.permute(0, 2, 1).float()
 
                 pred = self(x).reshape(-1)

@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import requests
-from typing import Union, Optional
+from typing import Union, Optional, Tuple, List
 from pathlib import Path
+from scipy.stats import spearmanr
+from sklearn.metrics import mean_squared_error
 import tarfile
 
 # gap (-), unknown (X)
@@ -34,7 +36,7 @@ def seq_to_ohe(seq: str, pad: Optional[int] = None) -> np.ndarray:
     # add padding
     if pad is not None:
         to_add = pad - len(seq)
-        seq = seq + ('-' * to_add)
+        seq = seq + ("-" * to_add)
 
     # to label
     labels = [AA_LIST.index(c) for c in seq]
@@ -126,3 +128,35 @@ def download_envision(data_dir: Union[str, Path]) -> None:
     r = requests.get(url)
     r.raise_for_status()
     Path(dl).write_text(r.text)
+
+
+def metrics(
+    y_true: np.ndarray, y_pred: np.ndarray, clip: Optional[List[float]] = None
+) -> Tuple[float, float]:
+
+    """Calculate mean squared error and spearman correlation.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        True activity values
+    y_pred : np.ndarray
+        Predicted activity values
+    clip : Optional[List[float]]
+        Range to clip predicted values
+
+    Returns
+    -------
+    mse : float
+        Mean squared error
+    spearman : float
+        Spearman rank correlation
+    """
+
+    if clip is not None:
+        y_pred = np.clip(y_pred, clip[0], clip[1])
+
+    mse = mean_squared_error(y_true, y_pred)
+    spearman = spearmanr(y_true, y_pred).correlation
+
+    return mse, spearman
