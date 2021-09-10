@@ -52,19 +52,19 @@ class TAPEDataModule(pl.LightningDataModule):
 
         """Setup datasets for train, valid, and test splits."""
 
-        if stage == "fit":
+        if stage == "fit" or stage is None:
             json_path = Path(
                 f"{self.data_dir}/{self.dataset}/{self.dataset}_train.json"
             )
             self.tape_train = TAPEDataset(json_path=json_path, dataset=self.dataset, pad=self.pad)
 
-        if stage == "validation":
+        if stage == "validation" or stage is None:
             json_path = Path(
                 f"{self.data_dir}/{self.dataset}/{self.dataset}_valid.json"
             )
             self.tape_valid = TAPEDataset(json_path=json_path, dataset=self.dataset, pad=self.pad)
 
-        if stage == "test":
+        if stage == "test" or stage is None:
             json_path = Path(f"{self.data_dir}/{self.dataset}/{self.dataset}_test.json")
             self.tape_test = TAPEDataset(json_path=json_path, dataset=self.dataset, pad=self.pad)
 

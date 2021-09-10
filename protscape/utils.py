@@ -6,6 +6,9 @@ from pathlib import Path
 from scipy.stats import spearmanr
 from sklearn.metrics import mean_squared_error
 import tarfile
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 # gap (-), unknown (X)
 AA_LIST = "ACDEFGHIKLMNPQRSTVWXY-"
@@ -160,3 +163,45 @@ def metrics(
     spearman = spearmanr(y_true, y_pred).correlation
 
     return mse, spearman
+
+
+def run_predict(model: nn.Module, loader: DataLoader, device: torch.device) -> Tuple[List, List]:
+
+    """Predict activity on input dataloader.
+
+    Parameters
+    ----------
+    model : nn.Module
+        PyTorch model to run prediction with
+    loader : DataLoader
+        DataLoader with X inputs and y target values
+    device : torch.device
+        cpu or cuda
+
+    Returns
+    --------
+    preds : List[float]
+        Predicted y values
+    true : List[float]
+        True y values
+    """
+
+    model.eval()
+    model = model.to(device)
+
+    preds = []
+    true = []
+
+    with torch.no_grad():
+        for batch in loader:
+            x, y = batch
+            x = x.to(device)
+
+            x = x.permute(0, 2, 1).float()
+
+            pred = model(x).reshape(-1)
+
+            preds.extend(pred.detach().cpu().numpy())
+            true.extend(y.numpy())
+
+    return preds, true

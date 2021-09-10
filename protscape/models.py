@@ -21,6 +21,17 @@ class MaxSeqPool(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.max(x, dim=-1)[0]
 
+class Permute(nn.Module):
+
+    """Layer to permute tensor."""
+
+    def __init__(self, *args) -> None:
+        super().__init__()
+        self.dims = args
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.permute(self.dims)
+
 
 class CNNEncoder(pl.LightningModule):
 
@@ -67,10 +78,10 @@ class CNNEncoder(pl.LightningModule):
         self.weight_decays = weight_decays
         self.reduction = reduction
 
-        encoder_out = encoder_kwargs["out_channels"][-1]
+        self.encoder_out = encoder_kwargs["out_channels"][-1]
 
         self.encoder = nn.Sequential(*self.make_encoder(encoder_kwargs))
-        self.mapper = nn.Sequential(*self.make_mapper(reduction, encoder_out))
+        self.mapper = nn.Sequential(*self.make_mapper(reduction, self.encoder_out))
         self.predictor = nn.Sequential(*self.make_predictor(reduction))
 
     def make_encoder(self, encoder_kwargs: Dict) -> List:
@@ -116,9 +127,19 @@ class CNNEncoder(pl.LightningModule):
         mapper_layers = []
 
         if reduction == "linear_maxpool":
-            layer = nn.Linear(in_chan, 2048)
+
+            # permute (batch, features, seq_len) -> (batch, seq_len, features)
+            # linear runs on last dim
+            layer = Permute(0, 2, 1)
+            mapper_layers.append(layer)
+
+            layer = nn.Linear(in_chan, self.encoder_out*2)
             mapper_layers.append(layer)
             mapper_layers.append(nn.ReLU(inplace=True))
+
+            # back to (batch, features, seq_len) for pooling
+            layer = Permute(0, 2, 1)
+            mapper_layers.append(layer)
 
         mapper_layers.append(MaxSeqPool())
 
@@ -130,8 +151,8 @@ class CNNEncoder(pl.LightningModule):
 
         predictor_layers = []
 
-        # maxpool out is 1024, linear_maxpool out is 2048
-        in_chan = 2048 if reduction == "linear_maxpool" else 1024
+        # maxpool size is encoder_out, linear_maxpool out is encoder_out*2
+        in_chan = self.encoder_out*2 if reduction == "linear_maxpool" else self.encoder_out
 
         layer = nn.Linear(in_chan, 1)
         predictor_layers.append(layer)
@@ -203,24 +224,3 @@ class CNNEncoder(pl.LightningModule):
 
         return loss
 
-    def run_predict(self, loader: DataLoader) -> Tuple[List, List]:
-
-        """Predict activity on input dataloader."""
-
-        self.eval()
-
-        preds = []
-        true = []
-
-        with torch.no_grad():
-            for batch in loader:
-                x, y = batch
-
-                x = x.permute(0, 2, 1).float()
-
-                pred = self(x).reshape(-1)
-
-                preds.extend(pred.detach().cpu().numpy())
-                true.extend(y.numpy())
-
-        return preds, true
